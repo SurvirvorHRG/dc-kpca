@@ -37,13 +37,53 @@ class DCA(ABC):
         # It should be 0, if not the convergence is not attained
         return
 
+    def fit2(self, G):
+        # Initializing the dual variable H
+        self.n = G.shape[0]
+        self.G = G
+        torch.manual_seed(8) #reproduciblity
+        self.H = torch.randn((self.n, self.s)).double()
+        self.losses = [self.evaluate_loss()]
+        self.train_table = pandas.DataFrame()
+        self.t = 1.
+        self.t_new = 0
+        self.z = 0
+        self.z_new = 0
+        
+        # Applying the DCA algorithm
+        for n_iter in range(self.max_iter):
+            self.step2()
+            if self.stopping_criterion():
+                self.exit_code = 0
+                return
+        self.exit_code = 1
+        # The variable exit_code informs about the termination of the algorithm
+        # It should be 0, if not the convergence is not attained
+        return
+    
     def step(self):
         # Perform a simple dca step for minimizing difference
         # of convex functions g(x) - f(x)
         # This amounts to y_k \in \partial f(x_k) followed by
         #  x_{k+1} \in \partial g^/star(y_k)
+        
+        
         new_y = self.subdifferential_nuclear_norm()
         new_x = self.subdifferential_variance(new_y)
+        self.H = new_x
+        # Storing the new loss value for computing stopping criterion
+        self.losses.append(self.evaluate_loss())
+        
+    def step2(self):
+        # Perform a simple dca step for minimizing difference
+        # of convex functions g(x) - f(x)
+        # This amounts to y_k \in \partial f(x_k) followed by
+        #  x_{k+1} \in \partial g^/star(y_k)
+        
+        self.z = self.subdifferential_nuclear_norm()
+        new_x = self.subdifferential_variance(self.z)
+        self.t_new = 1 + np.sqrt(1 + 4*self.t**2) / 2
+        self.z_new = new_x + (self.t - 1)/ self.t_new * (new_x - self.H)
         self.H = new_x
         # Storing the new loss value for computing stopping criterion
         self.losses.append(self.evaluate_loss())
